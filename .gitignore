@@ -1,0 +1,13 @@
+# secrets & env
+.env
+.env.*
+# local deps & build outputs
+node_modules/
+dist/
+coverage/
+diagnostics/
+# OS/editor noise
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
