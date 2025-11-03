@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    name: Build and Test
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Check syntax
+        run: |
+          echo "Checking JavaScript syntax..."
+          find scripts workers -name "*.js" -exec node --check {} \;
+      
+      - name: Run tests
+        run: |
+          if [ -f "package.json" ] && grep -q '"test"' package.json; then
+            npm test
+          else
+            echo "⏭️  No tests configured yet"
+          fi
+      
+      - name: Validate metrics
+        run: |
+          if [ -d metrics ] && [ -f metrics/thresholds.json ]; then
+            npm run metrics:validate
+          else
+            echo "⏭️  Skipping metrics validation (no metrics found)"
+          fi
+          
