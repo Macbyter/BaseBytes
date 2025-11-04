@@ -1,0 +1,27 @@
+chore(report): 2025-11-04 E2E live verification (Sepolia) + diagnostics
+
+### What changed
+- Add **2025-11-04** live E2E verification report under `docs/reports/`
+- Add GitHub Integration Guide under `docs/runbooks/`
+- Commit matching diagnostics: `diagnostics/anchor_*.json`, `metrics_*.log`, `index_*.json`
+- Link latest report in README
+- Update CI workflow with 3 required checks
+- Add ops scripts: mega-run.sh, slo_check.js, github-bootstrap.sh
+
+### Verification
+- `npm test` → ✅ 11/11 passing
+- `npm run metrics:verify` → ✅ PASS (require_attested=true, grace=300s)
+- `npm run slo:check` → ✅ PASS (p95<=60s, attested>=99.5%)
+
+### Live Proof
+- Transaction: 0x9f9fa10545300e66636b75612f9b86b37652712c1c1c06118af6a6277bc280f4
+- Block: 33242523
+- Explorer: https://sepolia.basescan.org/tx/0x9f9fa10545300e66636b75612f9b86b37652712c1c1c06118af6a6277bc280f4
+
+### Rollback
+Docs and scripts only; safe to revert.
+
+### Related
+- Closes #N/A (verification milestone)
+- Enables branch protection with 3 required CI checks
+- Prepares for v0.1.0 release
