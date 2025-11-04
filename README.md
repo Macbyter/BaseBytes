@@ -60,6 +60,96 @@ node scripts/send-eth.js --rpc "$RPC_URL" --key "$PRIVATE_KEY" --to 0x... --amou
 
 ---
 
+## Receipts → Chain Anchoring (EAS)
+
+### Overview
+
+BaseBytes uses the **Ethereum Attestation Service (EAS)** to anchor data receipts on-chain, providing cryptographic proof of data rental transactions.
+
+### Attestation Lifecycle
+
+Receipts progress through the following states:
+
+1. **pending** - Receipt created, awaiting attestation
+2. **attesting** - Attestation transaction submitted to chain
+3. **onchain** - Attestation confirmed and UID recorded
+4. **skipped** - Attestation failed (error recorded for debugging)
+
+### Database Schema
+
+The `receipts` table includes the following EAS fields:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `attestation_status` | TEXT | Current status (pending/attesting/onchain/skipped) |
+| `attestation_tx` | TEXT | Transaction hash (0x...) |
+| `attestation_uid` | TEXT | EAS attestation UID (0x...) |
+| `attestation_confirmed_at` | TIMESTAMPTZ | Confirmation timestamp |
+| `attestation_chain_id` | TEXT | Chain ID (0x14a34 = Base Sepolia) |
+| `attestation_error` | TEXT | Error message if failed |
+
+### Running the Attester Worker
+
+```bash
+# Set environment variables
+export BASE_SEPOLIA_RPC="https://sepolia.base.org"
+export ATTESTER_PRIVATE_KEY="0x..."
+export DATABASE_URL="postgresql://..."
+
+# Run worker
+node workers/eas-attester.js
+
+# Or with custom options
+node workers/eas-attester.js --interval 30 --batch-size 20
+
+# Dry run (no database writes)
+node workers/eas-attester.js --dry-run
+```
+
+### Worker Configuration
+
+- `--rpc <url>` - RPC endpoint (default: env `BASE_SEPOLIA_RPC`)
+- `--key <0xpk>` - Private key (default: env `ATTESTER_PRIVATE_KEY`)
+- `--interval <seconds>` - Poll interval (default: 60)
+- `--batch-size <n>` - Max receipts per batch (default: 10)
+- `--dry-run` - Simulate without database writes
+
+### Viewing Attestations
+
+Once a receipt is attested, you can view it on BaseScan:
+
+```
+https://sepolia.basescan.org/tx/{attestation_tx}
+```
+
+The attestation UID can be used to query the EAS contract directly.
+
+### Error Handling
+
+The worker implements exponential backoff for transient errors:
+- Network issues
+- Gas price fluctuations
+- Nonce conflicts
+
+Permanent errors (invalid data, contract issues) are logged and require manual intervention.
+
+### Metrics Integration
+
+Successful attestations are stamped in `metrics/run-*.json`:
+
+```json
+{
+  "eas": {
+    "attested": true,
+    "att_uid": "0x...",
+    "tx_hash": "0x...",
+    "chain_id": "0x14a34"
+  }
+}
+```
+
+---
+
 ## Local utilities
 
 Install dependencies once:
