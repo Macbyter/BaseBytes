@@ -8,7 +8,8 @@
     "chain:check": "node scripts/check-chain-id.js",
     "derive:address": "node scripts/derive-address.js",
     "tx:self": "node scripts/send-self-tx.js",
-    "metrics:verify": "node scripts/verify-metrics.js"
+    "metrics:verify": "node scripts/verify-metrics.js",
+    "migrate": "bash scripts/migrate.sh"
   },
   "keywords": [],
   "author": "",
