@@ -2,6 +2,64 @@
 
 Ethical Data Rental On Base
 
+## Quick Self-Transaction
+
+### Using GitHub Actions (Recommended)
+
+The easiest way to test the self-transaction functionality is through GitHub Actions:
+
+1. **Set up secrets** (one-time setup):
+   - Go to your repository **Settings** → **Secrets and variables** → **Actions**
+   - Add the following secrets:
+     - `BASE_SEPOLIA_RPC` - Your Base Sepolia RPC URL
+     - `ATTESTER_PRIVATE_KEY` - Your wallet private key (0x...)
+
+2. **Run the workflow**:
+   - Go to **Actions** → **Tx Self (Manual)**
+   - Click **Run workflow**
+   - Choose mode:
+     - **dry-run**: Simulates the transaction without broadcasting (safe for testing)
+     - **live**: Sends an actual 0 ETH self-transaction on Base Sepolia
+   - View results and download transaction diagnostics from artifacts
+
+### Using Codespaces
+
+For development in GitHub Codespaces:
+
+1. **Add Codespaces secrets**:
+   - Go to your GitHub **Settings** → **Codespaces** → **Secrets**
+   - Add `BASE_SEPOLIA_RPC` and `ATTESTER_PRIVATE_KEY`
+
+2. **Open Codespace** and run:
+   ```bash
+   npm ci
+   node scripts/send-eth.js --rpc "$BASE_SEPOLIA_RPC" --key "$ATTESTER_PRIVATE_KEY" --dry
+   ```
+
+### Local Development
+
+```bash
+# Install dependencies
+npm install
+
+# Set environment variables
+export RPC_URL="https://sepolia.base.org"
+export PRIVATE_KEY="0x..."
+
+# Dry run (no broadcast)
+node scripts/send-eth.js --rpc "$RPC_URL" --key "$PRIVATE_KEY" --dry
+
+# Live transaction (0 ETH to self)
+node scripts/send-eth.js --rpc "$RPC_URL" --key "$PRIVATE_KEY"
+
+# Send specific amount to address
+node scripts/send-eth.js --rpc "$RPC_URL" --key "$PRIVATE_KEY" --to 0x... --amount 0.001
+```
+
+**Important:** Never commit `.env` files or private keys to the repository!
+
+---
+
 ## Receipts → Chain Anchoring (EAS)
 
 ### Overview

@@ -1,0 +1,62 @@
+name: Tx Self (Manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Run mode'
+        required: true
+        type: choice
+        options:
+          - dry-run
+          - live
+        default: 'dry-run'
+
+jobs:
+  tx-self:
+    name: Self-Transaction on Base Sepolia
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run tx-self helper (dry-run)
+        if: inputs.mode == 'dry-run'
+        env:
+          BASE_SEPOLIA_RPC: ${{ secrets.BASE_SEPOLIA_RPC }}
+          ATTESTER_PRIVATE_KEY: ${{ secrets.ATTESTER_PRIVATE_KEY }}
+        run: |
+          echo "🧪 Running in dry-run mode..."
+          node scripts/send-eth.js \
+            --rpc "$BASE_SEPOLIA_RPC" \
+            --key "$ATTESTER_PRIVATE_KEY" \
+            --dry
+      
+      - name: Run tx-self helper (live)
+        if: inputs.mode == 'live'
+        env:
+          BASE_SEPOLIA_RPC: ${{ secrets.BASE_SEPOLIA_RPC }}
+          ATTESTER_PRIVATE_KEY: ${{ secrets.ATTESTER_PRIVATE_KEY }}
+        run: |
+          echo "🚀 Running in live mode..."
+          node scripts/send-eth.js \
+            --rpc "$BASE_SEPOLIA_RPC" \
+            --key "$ATTESTER_PRIVATE_KEY"
+      
+      - name: Upload diagnostics
+        if: inputs.mode == 'live'
+        uses: actions/upload-artifact@v4
+        with:
+          name: tx-diagnostics-${{ github.run_number }}
+          path: diagnostics/tx_*.json
+          retention-days: 30
+          
