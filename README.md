@@ -2,6 +2,12 @@
 
 Ethical Data Rental On Base
 
+## Operational Reports
+
+- **Latest Live E2E Verification:** [2025-11-04 — Base Sepolia](./docs/reports/2025-11-04-e2e-live-sepolia.md)
+- **GitHub Integration Guide:** [Setup CI/CD & Branch Protection](./docs/runbooks/github-integration.md)
+- **Status:** 🟢 Production Ready | Tests: 11/11 ✅ | SLO: 100% ✅
+
 ## Quick Self-Transaction
 
 ### Using GitHub Actions (Recommended)
