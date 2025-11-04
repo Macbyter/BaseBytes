@@ -4,7 +4,8 @@
   "description": "Ethical Data Rental On Base",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "chain:check": "node scripts/check-chain-id.js",
     "derive:address": "node scripts/derive-address.js",
     "tx:self": "node scripts/send-self-tx.js",
@@ -17,5 +18,9 @@
   "type": "commonjs",
   "dependencies": {
     "ethers": "^6.15.0"
+  },
+  "devDependencies": {
+    "pg-mem": "^3.0.5",
+    "vitest": "^4.0.6"
   }
 }
