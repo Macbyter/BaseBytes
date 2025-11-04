@@ -1,0 +1,29 @@
+{
+  "version": "1.0.0",
+  "description": "BaseBytes metrics thresholds for data rental receipts",
+  "updated": "2025-11-04",
+  "thresholds": {
+    "require_attested": true,
+    "min_confidence": 0.85,
+    "max_response_time_ms": 500,
+    "require_feature_commitment": true,
+    "allowed_privacy_modes": ["public", "zk"],
+    "require_evidence_set": false
+  },
+  "eas": {
+    "enabled": true,
+    "chain_id": "0x14a34",
+    "contract": "0x4200000000000000000000000000000000000021",
+    "schema_registry": "0x4200000000000000000000000000000000000020",
+    "required_fields": [
+      "attestation_uid",
+      "attestation_tx",
+      "attestation_status"
+    ]
+  },
+  "validation": {
+    "enforce_chain_id": true,
+    "reject_unattested": true,
+    "grace_period_seconds": 300
+  }
+}
