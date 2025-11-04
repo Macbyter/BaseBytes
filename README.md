@@ -148,6 +148,30 @@ Successful attestations are stamped in `metrics/run-*.json`:
 }
 ```
 
+### Metrics Thresholds
+
+The `metrics/thresholds.json` file defines quality and validation requirements:
+
+```json
+{
+  "thresholds": {
+    "require_attested": true,
+    "min_confidence": 0.85,
+    "require_feature_commitment": true
+  },
+  "eas": {
+    "enabled": true,
+    "chain_id": "0x14a34"
+  },
+  "validation": {
+    "reject_unattested": true,
+    "grace_period_seconds": 300
+  }
+}
+```
+
+When `require_attested: true`, all receipts must have valid EAS attestations before being accepted.
+
 ---
 
 ## Local utilities
