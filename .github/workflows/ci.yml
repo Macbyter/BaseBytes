@@ -35,12 +35,14 @@ jobs:
           else
             echo "⏭️  No tests configured yet"
           fi
+            - name: Run tests (incl. EAS worker simulation)
+        run: npm test
       
-      - name: Validate metrics
-        run: |
-          if [ -d metrics ] && [ -f metrics/thresholds.json ]; then
-            npm run metrics:validate
-          else
-            echo "⏭️  Skipping metrics validation (no metrics found)"
-          fi
+      - name: Validate metrics thresholds (require_attested=true)
+        run: npm run metrics:verify
+      
+      - name: SLO guard (p95 <= 60000ms, attested >= 0.995)
+        run: npm run slo:check
+
+      
           
