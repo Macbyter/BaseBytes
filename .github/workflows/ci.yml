@@ -2,47 +2,47 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [ "main" ]
   pull_request:
-    branches: [main]
+    branches: [ "main" ]
+
+permissions:
+  contents: read
 
 jobs:
-  build-and-test:
-    name: Build and Test
+  build-test-gate:
+    name: build-test-gate
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-      
+          node-version: "20"
+          cache: "npm"
+
       - name: Install dependencies
         run: npm ci
-      
-      - name: Check syntax
-        run: |
-          echo "Checking JavaScript syntax..."
-          find scripts workers -name "*.js" -exec node --check {} \;
-      
-      - name: Run tests
-        run: |
-          if [ -f "package.json" ] && grep -q '"test"' package.json; then
-            npm test
-          else
-            echo "⏭️  No tests configured yet"
-          fi
-            - name: Run tests (incl. EAS worker simulation)
+
+      # REQUIRED CHECK #1 (exact name for branch protection)
+      - name: Run tests (incl. EAS worker simulation)
         run: npm test
-      
+
+      # REQUIRED CHECK #2 (exact name for branch protection)
       - name: Validate metrics thresholds (require_attested=true)
         run: npm run metrics:verify
-      
+
+      # REQUIRED CHECK #3 (exact name for branch protection)
       - name: SLO guard (p95 <= 60000ms, attested >= 0.995)
+        env:
+          # Optional: if set, the guard reads from DB; otherwise it falls back to diagnostics JSON.
+          # Ensure you’ve configured this secret when a staging DB exists.
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: npm run slo:check
+
 
       
           
