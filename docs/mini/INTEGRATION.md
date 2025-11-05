@@ -219,8 +219,29 @@ Payout requests support idempotency via `idempotencyKey`:
 If the same `idempotencyKey` is used, the connector returns the previous result without executing a new payout.
 
 ---
+## 11) Security
 
-## 9) Error Handling
+### Path Traversal Protection
+
+All file path components (idempotency keys, receipt UIDs) are sanitized to prevent path traversal attacks.
+
+**Allowed characters:** `a-zA-Z0-9_-` (max 64 chars)
+
+**Example:**
+```js
+// Valid idempotency key
+{ "idempotencyKey": "payment-abc123" }
+
+// Invalid (will be rejected)
+{ "idempotencyKey": "../../../etc/passwd" }
+// Response: { "error": "invalid_idempotency_key", "details": "key contains unsafe characters" }
+```
+
+See [SECURITY.md](./SECURITY.md) for complete security documentation.
+
+---
+
+## 12) Error Handling
 
 ### Decision Endpoint
 

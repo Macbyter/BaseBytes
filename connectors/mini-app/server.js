@@ -89,7 +89,8 @@ app.post('/mini/decision', async (req, reply)=>{
       }
     } else {
       const dir = path.join(process.cwd(),'diagnostics'); try { fs.mkdirSync(dir,{recursive:true}); } catch {}
-      const file = path.join(dir, `receipt_${receiptUid}.json`);
+      const safeReceiptUid = sanitizeKey(receiptUid);
+      const file = path.join(dir, `receipt_${safeReceiptUid}.json`);
       fs.writeFileSync(file, JSON.stringify({ ts, appId, sku, subject, decision, features, privacy, policy: POLICY }, null, 2));
       persisted = { kind:'file', file };
     }
@@ -132,7 +133,12 @@ app.post('/mini/payout', async (req, reply)=>{
     }
 
     // idempotency
-    const idemId = idempotencyKey || `idem_${receiptUid || randomUUID()}`;
+    const rawIdemId = idempotencyKey || `idem_${receiptUid || randomUUID()}`;
+    const idemId = sanitizeKey(rawIdemId);
+    if (idemId !== rawIdemId) {
+      cReq.inc({route:'payout',result:'invalid_idempotency_key'});
+      return reply.code(400).send({ error:'invalid_idempotency_key', details:'key contains unsafe characters' });
+    }
     const idemFile = path.join(process.cwd(),'diagnostics',`payout_${idemId}.json`);
     if (fs.existsSync(idemFile)) {
       const prior = safeJSON(fs.readFileSync(idemFile,'utf8'));
@@ -183,6 +189,7 @@ app.post('/mini/payout', async (req, reply)=>{
 
 // helpers
 function safeJSON(s){ try { return JSON.parse(typeof s==='string'?s:JSON.stringify(s)); } catch { return {}; } }
+function sanitizeKey(key){ return String(key).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 64); }
 async function probeDb(){
   if (!DB_URL) return { ok:false, reason:'no_db' };
   const c = new Client({ connectionString: DB_URL, ssl: DB_URL.includes('sslmode=require') ? { rejectUnauthorized:false } : undefined });
