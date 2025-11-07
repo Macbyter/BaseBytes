@@ -51,6 +51,21 @@ async function sendUsdc({ mode, rpcUrl, signerKey, usdcAddress, to, amountUsd, u
 }
 
 function isPositive(x){ const n = Number(x); return Number.isFinite(n) && n > 0; }
-function parseToUnits(usd, decimals=6){ return BigInt(Math.round(Number(usd) * 10 ** decimals)); }
+
+/**
+ * SECURITY FIX: Use ethers.parseUnits for precision-safe conversion
+ * Avoids floating-point rounding errors for large amounts
+ */
+function parseToUnits(usd, decimals=6) {
+  try {
+    // Convert to string to preserve precision
+    const usdStr = String(usd);
+    // Use ethers.parseUnits for bigint-safe decimal parsing
+    return ethers.parseUnits(usdStr, decimals);
+  } catch (e) {
+    // Fallback for invalid input
+    return BigInt(0);
+  }
+}
 
 module.exports = { sendUsdc };

@@ -1,6 +1,78 @@
-# BaseBytes
+# BaseBytes - Ethical Data Rental on Base
 
-Ethical Data Rental On Base
+BaseBytes is a decentralized protocol for ethical data rental built on Base. It enables data providers to monetize their data streams while giving users transparent control over their information.
+
+## Core Concepts
+
+- **SKUs:** Data products with defined pricing and access rights.
+- **x402 Payments:** HTTP 402 payment-required flow for API access.
+- **EAS Receipts:** On-chain attestations for every payment.
+- **Daily Anchors:** Merkle roots of daily receipts for verifiable data integrity.
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js v22+
+- PostgreSQL
+- Git
+
+### Installation
+
+```bash
+# Clone repository
+git clone https://github.com/Macbyter/BaseBytes.git
+cd BaseBytes
+
+# Install dependencies
+npm install
+```
+
+### Configuration
+
+Create a `.env` file with the following:
+
+```
+DATABASE_URL="postgresql://user:pass@localhost:5432/basebytes"
+BASE_SEPOLIA_RPC_URL="https://base-sepolia-rpc.publicnode.com"
+TEST_PRIVATE_KEY="0x..."
+```
+
+### Database Setup
+
+```bash
+# Create database
+createdb basebytes
+
+# Run migrations
+DATABASE_URL="..." npm run migrate
+```
+
+### Running the Services
+
+```bash
+# Start API server
+PORT=3000 npm run server:start
+
+# Start payment indexer
+DATABASE_URL="..." npm run worker:indexer
+
+# Start EAS attester
+DATABASE_URL="..." npm run worker:eas
+
+# Run daily anchor (cron)
+0 10 * * * cd /path/to/BaseBytes && DATABASE_URL="..." npm run worker:anchor
+```
+
+## Integration
+
+See [INTEGRATION.md](INTEGRATION.md) for detailed examples of EVM and x402 integration.
+
+## API Reference
+
+See [OPENAPI.md](OPENAPI.md) for the full OpenAPI specification.
+
+---
 
 ## Operational Reports
 

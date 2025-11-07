@@ -15,9 +15,12 @@
     "e2e:anchor": "bash ops/e2e/mega-run.sh",
     "worker:eas": "node workers/eas-attester.js",
     "eas:register-schema": "node scripts/register-eas-schema.js",
+    "worker:indexer": "node workers/payment-indexer.js",
     "worker:anchor": "node workers/daily-anchor.js",
     "mini:start": "node connectors/mini-app/server.js",
-    "mini:dev": "NODE_ENV=development MINI_PORT=8787 node connectors/mini-app/server.js"
+    "mini:dev": "NODE_ENV=development MINI_PORT=8787 node connectors/mini-app/server.js",
+    "server:start": "node api/server.js",
+    "server:dev": "nodemon api/server.js"
   },
   "keywords": [],
   "author": "",
