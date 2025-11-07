@@ -12,10 +12,11 @@ const { Client } = require('pg');
 const prom = require('prom-client');
 const { decide } = require('./sku-engine');
 const { sendUsdc } = require('./payout');
+const { writeDiagnostic } = require('../../lib/secure-diagnostics');
 
 // config
 const MINI_PORT    = Number(process.env.MINI_PORT || 8787);
-const MINI_API_KEY = process.env.MINI_API_KEY || ''; // optional x-api-key for partners
+const MINI_API_KEY = process.env.MINI_API_KEY || ''; // REQUIRED x-api-key for partners
 const POLICY       = (process.env.POLICY || 'standard').toLowerCase();
 const POLICY_CAPS  = safeJSON(process.env.POLICY_CAPS);
 const DB_URL       = process.env.DATABASE_URL || '';
@@ -27,8 +28,38 @@ const USDC_DECIMALS = process.env.USDC_DECIMALS ? Number(process.env.USDC_DECIMA
 
 // app
 const app = fastify({ logger: true });
-app.register(cors, { origin: true });
+
+// SECURITY FIX: Restrict CORS to allowed origins only
+const allowedOrigins = process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : [];
+app.register(cors, {
+  origin: allowedOrigins.length > 0 ? allowedOrigins : false,
+  credentials: true
+});
+
 app.register(rateLimit, { max: Number(process.env.MINI_RPS || 20), timeWindow: '1 minute' });
+
+// SECURITY FIX: Enforce API key authentication for all endpoints
+app.addHook('onRequest', async (request, reply) => {
+  // SECURITY NOTE: Health/metrics endpoints are now authenticated
+  // For internal-only access, use IP allow-lists or internal network
+  const publicEndpoints = process.env.PUBLIC_ENDPOINTS?.split(',') || [];
+  
+  if (publicEndpoints.includes(request.url)) {
+    return;
+  }
+  
+  // Require API key for all other endpoints
+  if (!MINI_API_KEY) {
+    reply.code(500).send({ error: 'MINI_API_KEY not configured' });
+    return;
+  }
+  
+  const apiKey = request.headers['x-api-key'];
+  if (!apiKey || apiKey !== MINI_API_KEY) {
+    reply.code(401).send({ error: 'Unauthorized: Invalid or missing API key' });
+    return;
+  }
+});
 
 // metrics
 const registry = new prom.Registry();
@@ -88,11 +119,11 @@ app.post('/mini/decision', async (req, reply)=>{
         persisted = { kind:'error', error: e.message };
       }
     } else {
-      const dir = path.join(process.cwd(),'diagnostics'); try { fs.mkdirSync(dir,{recursive:true}); } catch {}
+      // SECURITY FIX: Use secure diagnostic writer with redaction
       const safeReceiptUid = sanitizeKey(receiptUid);
-      const file = path.join(dir, `receipt_${safeReceiptUid}.json`);
-      fs.writeFileSync(file, JSON.stringify({ ts, appId, sku, subject, decision, features, privacy, policy: POLICY }, null, 2));
-      persisted = { kind:'file', file };
+      persisted = writeDiagnostic(`receipt_${safeReceiptUid}.json`, {
+        ts, appId, sku, subject, decision, features, privacy, policy: POLICY
+      }, { redact: true, logger: app.log });
     }
 
     cReq.inc({route:'decision',result:decision.value});
@@ -171,6 +202,11 @@ app.post('/mini/payout', async (req, reply)=>{
       amountUSDC: res.amountUSDC || String(amountUSDC ?? Math.round(Number(amountUsd)*1e6)),
       status: res.status, txHash: res.txHash || null, chainId: res.chainId || null, note: res.note || null
     };
+    
+    // SECURITY FIX: Use secure diagnostic writer for payout records
+    if (process.env.NODE_ENV !== 'production') {
+      writeDiagnostic(`payout_${idemId}.json`, out, { redact: true, logger: app.log });
+    }
     try { fs.mkdirSync(path.dirname(idemFile), { recursive:true }); } catch {}
     fs.writeFileSync(idemFile, JSON.stringify(out, null, 2));
 
