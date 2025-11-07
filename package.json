@@ -10,7 +10,7 @@
     "derive:address": "node scripts/derive-address.js",
     "tx:self": "node scripts/send-self-tx.js",
     "metrics:verify": "node scripts/verify-metrics.js",
-    "migrate": "bash scripts/migrate.sh",
+    "migrate": "node scripts/run-migrations.js",
     "slo:check": "node ops/slo_check.js",
     "e2e:anchor": "bash ops/e2e/mega-run.sh",
     "worker:eas": "node workers/eas-attester.js",
