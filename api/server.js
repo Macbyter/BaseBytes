@@ -220,7 +220,8 @@ fastify.get('/ai/entitlements', async (request, reply) => {
     return reply.code(400).send({ error: 'buyer parameter required' });
   }
 
-  // TODO: Query database in PR #3
+  // Note: This endpoint returns empty entitlements for now.
+  // Full implementation requires database integration.
   return { buyer, entitlements: [] };
 });
 
@@ -230,7 +231,8 @@ fastify.get('/ai/entitlements', async (request, reply) => {
 fastify.get('/ai/receipt/:id', async (request, reply) => {
   const { id } = request.params;
 
-  // TODO: Query database in PR #3
+  // Note: This endpoint is a stub.
+  // Full implementation requires database integration.
   return reply.code(404).send({ error: 'Receipt not found' });
 });
 
@@ -240,7 +242,8 @@ fastify.get('/ai/receipt/:id', async (request, reply) => {
 fastify.get('/proofs/:id', async (request, reply) => {
   const { id } = request.params;
 
-  // TODO: Implement Merkle proof in PR #5
+  // Note: This endpoint is a stub.
+  // Full implementation requires Merkle tree integration.
   return reply.code(404).send({ error: 'Proof not found' });
 });
 

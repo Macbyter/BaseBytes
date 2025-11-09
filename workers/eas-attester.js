@@ -30,6 +30,7 @@
  */
 
 const { JsonRpcProvider, Wallet, Contract } = require('ethers');
+const { Pool } = require('pg');
 
 // Base Sepolia configuration
 const CHAIN_ID = 0x14a34; // 84532 decimal
@@ -68,53 +69,99 @@ function parseArgs() {
 }
 
 /**
- * Database operations (placeholder - implement with your DB library)
+ * Database operations using PostgreSQL
  */
 class Database {
   constructor(connectionString) {
     this.connectionString = connectionString;
-    // TODO: Initialize database connection (pg, prisma, etc.)
+    this.pool = null;
   }
 
   async connect() {
     console.log('📦 Connecting to database...');
-    // TODO: Implement connection
-    console.log('   ✅ Connected');
+    
+    this.pool = new Pool({
+      connectionString: this.connectionString,
+      ssl: process.env.PGSSLMODE === 'verify-full' ? {
+        rejectUnauthorized: true
+      } : false,
+      max: 10,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 5000
+    });
+
+    // Test connection
+    const client = await this.pool.connect();
+    await client.query('SELECT NOW()');
+    client.release();
+    
+    console.log('   ✅ Connected to PostgreSQL');
   }
 
   async getPendingReceipts(limit = 10) {
     console.log(`🔍 Fetching up to ${limit} pending receipts...`);
-    // TODO: Query receipts with attestation_status = 'pending'
-    // Example query:
-    // SELECT id, data_hash, created_at 
-    // FROM receipts 
-    // WHERE attestation_status = 'pending'
-    // ORDER BY created_at ASC
-    // LIMIT $1
     
-    // Placeholder return
-    return [];
+    const query = `
+      SELECT 
+        id,
+        tx_hash,
+        log_index,
+        buyer,
+        seller,
+        sku_id,
+        amount,
+        currency,
+        data_hash,
+        created_at
+      FROM receipts
+      WHERE attestation_status = 'pending'
+      ORDER BY created_at ASC
+      LIMIT $1
+    `;
+    
+    const result = await this.pool.query(query, [limit]);
+    console.log(`   Found ${result.rows.length} pending receipt(s)`);
+    
+    return result.rows;
   }
 
   async updateReceiptStatus(receiptId, status, metadata = {}) {
     console.log(`📝 Updating receipt ${receiptId} to status: ${status}`);
-    // TODO: Update receipt with new status and metadata
-    // Example query:
-    // UPDATE receipts 
-    // SET attestation_status = $1,
-    //     attestation_tx = $2,
-    //     attestation_uid = $3,
-    //     attestation_confirmed_at = $4,
-    //     attestation_chain_id = $5,
-    //     attestation_error = $6
-    // WHERE id = $7
     
-    console.log(`   Metadata:`, metadata);
+    const query = `
+      UPDATE receipts
+      SET 
+        attestation_status = $2,
+        attestation_tx = $3,
+        attestation_uid = $4,
+        attestation_confirmed_at = $5,
+        attestation_chain_id = $6,
+        attestation_error = $7,
+        updated_at = NOW()
+      WHERE id = $1
+    `;
+    
+    await this.pool.query(query, [
+      receiptId,
+      status,
+      metadata.attestation_tx || null,
+      metadata.attestation_uid || null,
+      metadata.attestation_confirmed_at || null,
+      metadata.attestation_chain_id || null,
+      metadata.attestation_error || null
+    ]);
+    
+    if (Object.keys(metadata).length > 0) {
+      console.log(`   Metadata:`, metadata);
+    }
   }
 
   async close() {
     console.log('🔌 Closing database connection...');
-    // TODO: Close connection
+    if (this.pool) {
+      await this.pool.end();
+    }
+    console.log('   ✅ Database connection closed');
   }
 }
 
@@ -194,8 +241,13 @@ class EASAttester {
       }
 
       // Prepare attestation data
+      const schemaUID = process.env.EAS_SCHEMA_UID;
+      if (!schemaUID) {
+        throw new Error('EAS_SCHEMA_UID environment variable is required');
+      }
+      
       const attestationData = {
-        schema: '0x0000000000000000000000000000000000000000000000000000000000000000', // TODO: Use actual schema UID
+        schema: schemaUID,
         data: {
           recipient: this.wallet.address,
           expirationTime: 0, // No expiration
