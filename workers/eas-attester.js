@@ -104,17 +104,21 @@ class Database {
     const query = `
       SELECT 
         id,
-        tx_hash,
-        log_index,
+        receipt_id,
+        payment_id,
         buyer,
         seller,
         sku_id,
-        amount,
-        currency,
-        data_hash,
+        amount_usd6,
+        units,
+        tx_hash,
+        block_number,
+        block_timestamp,
+        attestation_uid,
+        schema_uid,
         created_at
       FROM receipts
-      WHERE attestation_status = 'pending'
+      WHERE attestation_uid IS NULL
       ORDER BY created_at ASC
       LIMIT $1
     `;
@@ -125,30 +129,26 @@ class Database {
     return result.rows;
   }
 
-  async updateReceiptStatus(receiptId, status, metadata = {}) {
-    console.log(`📝 Updating receipt ${receiptId} to status: ${status}`);
+  async updateReceiptStatus(receiptId, metadata = {}) {
+    console.log(`📝 Updating receipt ${receiptId}`);
     
     const query = `
       UPDATE receipts
       SET 
-        attestation_status = $2,
-        attestation_tx = $3,
-        attestation_uid = $4,
-        attestation_confirmed_at = $5,
-        attestation_chain_id = $6,
-        attestation_error = $7,
+        attestation_uid = $2,
+        schema_uid = $3,
+        attested_at = $4,
+        attestation_tx = $5,
         updated_at = NOW()
       WHERE id = $1
     `;
     
     await this.pool.query(query, [
       receiptId,
-      status,
-      metadata.attestation_tx || null,
       metadata.attestation_uid || null,
-      metadata.attestation_confirmed_at || null,
-      metadata.attestation_chain_id || null,
-      metadata.attestation_error || null
+      metadata.schema_uid || null,
+      metadata.attested_at || null,
+      metadata.attestation_tx || null
     ]);
     
     if (Object.keys(metadata).length > 0) {
@@ -229,31 +229,40 @@ class EASAttester {
   }
 
   async processReceipt(receipt) {
-    console.log(`\n📋 Processing receipt: ${receipt.id}`);
-    console.log(`   Data hash: ${receipt.data_hash}`);
+    console.log(`\n📋 Processing receipt: ${receipt.receipt_id}`);
+    console.log(`   Receipt ID: ${receipt.receipt_id}`);
+    console.log(`   Buyer: ${receipt.buyer}`);
+    console.log(`   SKU: ${receipt.sku_id}`);
 
     try {
-      // Update status to 'attesting'
-      if (!this.config.dryRun) {
-        await this.db.updateReceiptStatus(receipt.id, 'attesting', {
-          attestation_chain_id: CHAIN_ID_HEX
-        });
-      }
-
-      // Prepare attestation data
-      const schemaUID = process.env.EAS_SCHEMA_UID;
-      if (!schemaUID) {
-        throw new Error('EAS_SCHEMA_UID environment variable is required');
+      // Get schema UID from environment or database
+      const schemaUID = process.env.EAS_SCHEMA_UID || receipt.schema_uid;
+      if (!schemaUID || schemaUID === '0x0000000000000000000000000000000000000000000000000000000000000000') {
+        throw new Error('EAS_SCHEMA_UID environment variable is required or schema_uid must be set in database');
       }
       
+      // Encode attestation data according to schema:
+      // string receiptId, address buyer, address seller, string skuId, uint256 amountUsd6, uint32 units, bytes32 txHash
+      const { ethers } = require('ethers');
       const attestationData = {
         schema: schemaUID,
         data: {
-          recipient: this.wallet.address,
+          recipient: receipt.buyer, // Attest to the buyer
           expirationTime: 0, // No expiration
           revocable: false,
           refUID: '0x0000000000000000000000000000000000000000000000000000000000000000',
-          data: receipt.data_hash, // Receipt data hash
+          data: ethers.AbiCoder.defaultAbiCoder().encode(
+            ['string', 'address', 'address', 'string', 'uint256', 'uint32', 'bytes32'],
+            [
+              receipt.receipt_id,
+              receipt.buyer,
+              receipt.seller,
+              receipt.sku_id,
+              receipt.amount_usd6,
+              receipt.units,
+              receipt.tx_hash
+            ]
+          ),
           value: 0
         }
       };
@@ -262,18 +271,14 @@ class EASAttester {
 
       if (this.config.dryRun) {
         console.log(`   🧪 DRY RUN: Would submit attestation`);
+        console.log(`   Schema: ${schemaUID}`);
+        console.log(`   Recipient: ${receipt.buyer}`);
         return;
       }
 
       // Submit attestation
       const tx = await this.easContract.attest(attestationData);
       console.log(`   Transaction hash: ${tx.hash}`);
-
-      // Update with transaction hash
-      await this.db.updateReceiptStatus(receipt.id, 'attesting', {
-        attestation_tx: tx.hash,
-        attestation_chain_id: CHAIN_ID_HEX
-      });
 
       // Wait for confirmation
       console.log(`   ⏳ Waiting for confirmation...`);
@@ -298,13 +303,12 @@ class EASAttester {
         console.log(`   UID: ${attestationUID}`);
       }
 
-      // Update to 'onchain'
-      await this.db.updateReceiptStatus(receipt.id, 'onchain', {
-        attestation_tx: tx.hash,
+      // Update receipt with attestation data
+      await this.db.updateReceiptStatus(receipt.id, {
         attestation_uid: attestationUID,
-        attestation_confirmed_at: new Date().toISOString(),
-        attestation_chain_id: CHAIN_ID_HEX,
-        attestation_error: null
+        schema_uid: schemaUID,
+        attested_at: new Date().toISOString(),
+        attestation_tx: tx.hash
       });
 
       // Optional: Update metrics
@@ -312,13 +316,7 @@ class EASAttester {
 
     } catch (error) {
       console.error(`   ❌ Error processing receipt: ${error.message}`);
-
-      // Revert to 'pending' with error message
-      if (!this.config.dryRun) {
-        await this.db.updateReceiptStatus(receipt.id, 'pending', {
-          attestation_error: error.message
-        });
-      }
+      console.error(`   Stack: ${error.stack}`);
 
       // Check if error is transient (network issues, gas, etc.)
       const isTransient = this.isTransientError(error);

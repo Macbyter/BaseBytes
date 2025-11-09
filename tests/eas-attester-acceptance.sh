@@ -1,6 +1,6 @@
 #!/bin/bash
 # EAS Attester Acceptance Test
-# Tests the complete database integration
+# Tests the complete database integration with actual schema
 
 set -e
 
@@ -30,47 +30,88 @@ else
   exit 1
 fi
 
-# Test 2: Receipts table exists
-echo "✓ Test 2: Receipts table exists"
-TABLE_EXISTS=$(psql "${DATABASE_URL}" -t -c "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'receipts')" | tr -d ' ')
-if [ "$TABLE_EXISTS" = "t" ]; then
-  echo "  ✅ Receipts table exists"
+# Test 2: Receipts table exists with correct schema
+echo "✓ Test 2: Receipts table schema"
+SCHEMA_CHECK=$(psql "${DATABASE_URL}" -t -c "
+  SELECT COUNT(*) FROM information_schema.columns 
+  WHERE table_name = 'receipts' 
+  AND column_name IN ('receipt_id', 'amount_usd6', 'units', 'attestation_uid', 'schema_uid')
+" | tr -d ' ')
+
+if [ "$SCHEMA_CHECK" -eq 5 ]; then
+  echo "  ✅ Receipts table has correct schema"
 else
-  echo "  ❌ Receipts table not found"
+  echo "  ❌ Receipts table schema mismatch (expected 5 columns, got $SCHEMA_CHECK)"
   exit 1
 fi
 
-# Test 3: Insert test receipt
-echo "✓ Test 3: Insert test receipt"
+# Test 3: Insert test payment first (receipts reference payments)
+echo "✓ Test 3: Insert test payment"
 psql "${DATABASE_URL}" -c "
-  INSERT INTO receipts (
+  INSERT INTO payments (
     tx_hash,
     log_index,
     buyer,
     seller,
     sku_id,
-    amount,
-    currency,
-    data_hash,
-    attestation_status
+    amount_usd6,
+    units,
+    block_number,
+    block_timestamp
   ) VALUES (
-    '0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
+    '0xtest123abc',
     0,
     '0x1111111111111111111111111111111111111111',
     '0x2222222222222222222222222222222222222222',
     'test.sku.v1',
-    '1000000',
-    'USDC',
-    '0xabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcd',
-    'pending'
+    1000000,
+    1,
+    1000000,
+    1700000000
   )
   ON CONFLICT (tx_hash, log_index) DO NOTHING
+  RETURNING id
+" > /tmp/payment_id.txt 2>&1
+
+PAYMENT_ID=$(grep -oE '[0-9]+' /tmp/payment_id.txt | head -1)
+echo "  ✅ Test payment inserted (ID: ${PAYMENT_ID})"
+
+# Test 4: Insert test receipt
+echo "✓ Test 4: Insert test receipt"
+psql "${DATABASE_URL}" -c "
+  INSERT INTO receipts (
+    receipt_id,
+    payment_id,
+    buyer,
+    seller,
+    sku_id,
+    amount_usd6,
+    units,
+    tx_hash,
+    block_number,
+    block_timestamp
+  ) VALUES (
+    'receipt-test-001',
+    ${PAYMENT_ID},
+    '0x1111111111111111111111111111111111111111',
+    '0x2222222222222222222222222222222222222222',
+    'test.sku.v1',
+    1000000,
+    1,
+    '0xtest123abc',
+    1000000,
+    1700000000
+  )
+  ON CONFLICT (receipt_id) DO NOTHING
 " > /dev/null 2>&1
 echo "  ✅ Test receipt inserted"
 
-# Test 4: Query pending receipts
-echo "✓ Test 4: Query pending receipts"
-PENDING_COUNT=$(psql "${DATABASE_URL}" -t -c "SELECT COUNT(*) FROM receipts WHERE attestation_status = 'pending'" | tr -d ' ')
+# Test 5: Query pending receipts (attestation_uid IS NULL)
+echo "✓ Test 5: Query pending receipts"
+PENDING_COUNT=$(psql "${DATABASE_URL}" -t -c "
+  SELECT COUNT(*) FROM receipts WHERE attestation_uid IS NULL
+" | tr -d ' ')
+
 if [ "$PENDING_COUNT" -gt 0 ]; then
   echo "  ✅ Found ${PENDING_COUNT} pending receipt(s)"
 else
@@ -78,8 +119,8 @@ else
   exit 1
 fi
 
-# Test 5: Run EAS attester in dry-run mode
-echo "✓ Test 5: Run EAS attester (dry-run)"
+# Test 6: Run EAS attester in dry-run mode
+echo "✓ Test 6: Run EAS attester (dry-run)"
 timeout 10 node workers/eas-attester.js --dry-run > /tmp/eas-test.log 2>&1 &
 EAS_PID=$!
 sleep 5
@@ -92,34 +133,37 @@ else
   cat /tmp/eas-test.log
 fi
 
-# Test 6: Update receipt status
-echo "✓ Test 6: Update receipt status"
+# Test 7: Update receipt with attestation
+echo "✓ Test 7: Update receipt with attestation"
 psql "${DATABASE_URL}" -c "
   UPDATE receipts
   SET 
-    attestation_status = 'onchain',
-    attestation_tx = '0xtest123',
-    attestation_uid = '0xuid123',
-    attestation_chain_id = '0x14a34'
-  WHERE attestation_status = 'pending'
-  LIMIT 1
+    attestation_uid = '0xuid123456789',
+    schema_uid = '${EAS_SCHEMA_UID}',
+    attested_at = NOW(),
+    attestation_tx = '0xtxhash123'
+  WHERE receipt_id = 'receipt-test-001'
 " > /dev/null 2>&1
-echo "  ✅ Receipt status updated"
+echo "  ✅ Receipt attestation updated"
 
-# Test 7: Verify update
-echo "✓ Test 7: Verify status update"
-ONCHAIN_COUNT=$(psql "${DATABASE_URL}" -t -c "SELECT COUNT(*) FROM receipts WHERE attestation_status = 'onchain'" | tr -d ' ')
-if [ "$ONCHAIN_COUNT" -gt 0 ]; then
-  echo "  ✅ Found ${ONCHAIN_COUNT} onchain receipt(s)"
+# Test 8: Verify attestation
+echo "✓ Test 8: Verify attestation"
+ATTESTED_COUNT=$(psql "${DATABASE_URL}" -t -c "
+  SELECT COUNT(*) FROM receipts WHERE attestation_uid IS NOT NULL
+" | tr -d ' ')
+
+if [ "$ATTESTED_COUNT" -gt 0 ]; then
+  echo "  ✅ Found ${ATTESTED_COUNT} attested receipt(s)"
 else
-  echo "  ❌ No onchain receipts found"
+  echo "  ❌ No attested receipts found"
   exit 1
 fi
 
 # Cleanup
 echo ""
 echo "🧹 Cleanup"
-psql "${DATABASE_URL}" -c "DELETE FROM receipts WHERE tx_hash = '0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef'" > /dev/null 2>&1
+psql "${DATABASE_URL}" -c "DELETE FROM receipts WHERE receipt_id = 'receipt-test-001'" > /dev/null 2>&1
+psql "${DATABASE_URL}" -c "DELETE FROM payments WHERE tx_hash = '0xtest123abc'" > /dev/null 2>&1
 echo "  ✅ Test data cleaned up"
 
 echo ""
