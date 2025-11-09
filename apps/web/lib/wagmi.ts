@@ -2,7 +2,11 @@ import { http, createConfig } from 'wagmi'
 import { base, baseSepolia } from 'wagmi/chains'
 import { coinbaseWallet, metaMask, walletConnect, injected } from 'wagmi/connectors'
 
-const projectId = process.env.NEXT_PUBLIC_WC_PROJECT_ID || 'demo-project-id'
+const projectId = process.env.NEXT_PUBLIC_WC_PROJECT_ID
+
+if (!projectId) {
+  console.warn('⚠️  NEXT_PUBLIC_WC_PROJECT_ID is not set. WalletConnect will not work. Get a project ID from https://cloud.walletconnect.com')
+}
 
 export const config = createConfig({
   chains: [base, baseSepolia],
@@ -12,7 +16,7 @@ export const config = createConfig({
       appName: 'BaseBytes',
       appLogoUrl: 'https://basebytes.org/logo.png',
     }),
-    walletConnect({ projectId }),
+    ...(projectId ? [walletConnect({ projectId })] : []),
     injected({ target: 'rabby' }),
   ],
   transports: {
