@@ -1,0 +1,21 @@
+# CODEOWNERS - Require security team review for critical paths
+
+# Smart contracts and workers require security review
+/contracts/ @Macbyter
+/workers/ @Macbyter
+/jobs/ @Macbyter
+
+# API and web application require security review
+/apps/api/ @Macbyter
+/apps/web/ @Macbyter
+
+# Core library and scripts
+/lib/ @Macbyter
+/scripts/ @Macbyter
+
+# Audit and security
+/audit/ @Macbyter
+
+# Infrastructure and deployment
+docker-compose*.yml @Macbyter
+.github/workflows/ @Macbyter
