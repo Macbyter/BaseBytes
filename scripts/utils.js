@@ -36,7 +36,7 @@ const parseCliArgs = (argv) => {
     const key = arg.slice(2);
     const next = argv[index + 1];
 
-    if (typeof next === 'string' && next !== '--' && !next.startsWith('-')) {
+    if (typeof next === 'string' && next !== '--' && !next.startsWith('--')) {
       flags[key] = next;
       index += 1;
     } else {
